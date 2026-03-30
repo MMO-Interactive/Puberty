@@ -307,101 +307,35 @@ function loginUser(array $user): void
 {
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
+    unset($_SESSION['login_failures'], $_SESSION['login_blocked_until']);
 }
 
 function logoutUser(): void
 {
+    $_SESSION = [];
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION = [];
-
-        if (ini_get('session.use_cookies')) {
-            $params = session_get_cookie_params();
-            setcookie(
-                session_name(),
-                '',
-                time() - 42000,
-                $params['path'],
-                $params['domain'],
-                (bool) $params['secure'],
-                (bool) $params['httponly']
-            );
-        }
-
-        session_destroy();
-        session_start();
         session_regenerate_id(true);
     }
+    unset($_SESSION['user_id']);
 }
 
-function clientIpAddress(): string
+function loginGuard(): void
 {
-    $ip = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
-
-    return $ip !== '' ? substr($ip, 0, 45) : 'unknown';
-}
-
-function loginGuard(string $email, string $ipAddress): void
-{
-    $blockedUntil = (int) fetchScalar(
-        'SELECT blocked_until FROM login_attempts WHERE email = :email AND ip_address = :ip_address',
-        ['email' => $email, 'ip_address' => $ipAddress],
-        0
-    );
-
+    $blockedUntil = (int) ($_SESSION['login_blocked_until'] ?? 0);
     if ($blockedUntil > time()) {
         throw new RuntimeException('Too many login attempts. Please wait a minute and try again.');
     }
 }
 
-function registerLoginFailure(string $email, string $ipAddress): void
+function registerLoginFailure(): void
 {
-    $statement = db()->prepare(
-        'SELECT id, failed_count FROM login_attempts WHERE email = :email AND ip_address = :ip_address'
-    );
-    $statement->execute(['email' => $email, 'ip_address' => $ipAddress]);
-    $row = $statement->fetch();
+    $failures = (int) ($_SESSION['login_failures'] ?? 0) + 1;
+    $_SESSION['login_failures'] = $failures;
 
-    if (!$row) {
-        $insert = db()->prepare(
-            'INSERT INTO login_attempts (email, ip_address, failed_count, blocked_until, updated_at)
-             VALUES (:email, :ip_address, :failed_count, :blocked_until, :updated_at)'
-        );
-        $insert->execute([
-            'email' => $email,
-            'ip_address' => $ipAddress,
-            'failed_count' => 1,
-            'blocked_until' => 0,
-            'updated_at' => now(),
-        ]);
-        return;
+    if ($failures >= 5) {
+        $_SESSION['login_blocked_until'] = time() + 60;
+        $_SESSION['login_failures'] = 0;
     }
-
-    $failures = (int) $row['failed_count'] + 1;
-    $blockedUntil = $failures >= 5 ? time() + 60 : 0;
-    $nextFailures = $failures >= 5 ? 0 : $failures;
-
-    $update = db()->prepare(
-        'UPDATE login_attempts
-         SET failed_count = :failed_count,
-             blocked_until = :blocked_until,
-             updated_at = :updated_at
-         WHERE id = :id'
-    );
-    $update->execute([
-        'failed_count' => $nextFailures,
-        'blocked_until' => $blockedUntil,
-        'updated_at' => now(),
-        'id' => $row['id'],
-    ]);
-}
-
-function clearLoginFailures(string $email, string $ipAddress): void
-{
-    $statement = db()->prepare('DELETE FROM login_attempts WHERE email = :email AND ip_address = :ip_address');
-    $statement->execute([
-        'email' => $email,
-        'ip_address' => $ipAddress,
-    ]);
 }
 
 function levelForXp(int $xp): int
@@ -1077,6 +1011,8 @@ function handleRegister(): void
 
 function handleLogin(): void
 {
+    loginGuard();
+
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
     $password = (string) ($_POST['password'] ?? '');
     $ipAddress = clientIpAddress();
@@ -1092,7 +1028,7 @@ function handleLogin(): void
     $user = $statement->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
-        registerLoginFailure($email, $ipAddress);
+        registerLoginFailure();
         throw new RuntimeException('Email or password was incorrect.');
     }
 
@@ -1234,9 +1170,6 @@ function handleTracker(): void
     }
     if ($cycleLength < 20 || $cycleLength > 45) {
         throw new RuntimeException('Cycle length should be between 20 and 45 days.');
-    }
-    if (!in_array($mood, $validMoods, true)) {
-        throw new RuntimeException('Please choose a valid mood option.');
     }
 
     $statement = db()->prepare('INSERT INTO tracker_entries (user_id, start_date, cycle_length, mood, notes, created_at) VALUES (:user_id, :start_date, :cycle_length, :mood, :notes, :created_at)');
