@@ -1,0 +1,765 @@
+:root {
+    --bg: #fff8ef;
+    --bg-alt: #fffefb;
+    --text: #2c2340;
+    --muted: #6f6782;
+    --peach: #ffb38a;
+    --coral: #ff7b7b;
+    --melon: #ffd76d;
+    --mint: #8fe3c2;
+    --sky: #95d9ff;
+    --card: rgba(255, 255, 255, 0.76);
+    --border: rgba(44, 35, 64, 0.1);
+    --shadow: 0 20px 60px rgba(76, 51, 111, 0.16);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    font-family: "Nunito", sans-serif;
+    color: var(--text);
+    background:
+        radial-gradient(circle at top left, rgba(255, 215, 109, 0.4), transparent 28%),
+        radial-gradient(circle at top right, rgba(149, 217, 255, 0.45), transparent 25%),
+        linear-gradient(180deg, #fff7ef 0%, #fffdf7 100%);
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+.page-shell {
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 24px 0 56px;
+}
+
+.hero {
+    position: relative;
+    overflow: hidden;
+    padding: 28px;
+    border-radius: 32px;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.7), transparent 26%),
+        linear-gradient(135deg, rgba(255, 179, 138, 0.95), rgba(149, 217, 255, 0.95));
+    box-shadow: var(--shadow);
+}
+
+.topbar,
+.hero-panel,
+.feature-grid,
+.tour-grid,
+.tour-detail,
+.tracker-layout,
+.diary-layout,
+.dashboard-columns,
+.stats-grid,
+.badge-grid,
+.mini-feed {
+    display: grid;
+    gap: 20px;
+}
+
+.topbar {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.brand-mark {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    font-family: "Baloo 2", cursive;
+    font-size: 1.7rem;
+    font-weight: 800;
+}
+
+.eyebrow,
+.card-label,
+.tour-card span {
+    margin: 0;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--muted);
+}
+
+.brand h1,
+.hero-copy h2,
+.section-heading h2,
+.tour-copy h3,
+.feature-card h3,
+.panel h3 {
+    margin: 0;
+    font-family: "Baloo 2", cursive;
+    line-height: 1;
+}
+
+.brand h1 {
+    font-size: 2rem;
+}
+
+.topbar-links {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.topbar-links a,
+.button,
+.nav-button {
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.topbar-links a,
+.nav-button {
+    padding: 10px 14px;
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.58);
+    font-weight: 700;
+}
+
+.topbar-links a.is-current {
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: inset 0 0 0 1px rgba(44, 35, 64, 0.08);
+}
+
+.nav-button {
+    border: 0;
+    cursor: pointer;
+}
+
+.inline-form {
+    margin: 0;
+}
+
+.topbar-links a:hover,
+.button:hover,
+.tour-card:hover,
+.nav-button:hover,
+.lesson-button:hover {
+    transform: translateY(-2px);
+}
+
+.hero-panel {
+    grid-template-columns: 1.4fr 0.9fr;
+    align-items: center;
+    margin-top: 36px;
+}
+
+.hero-copy h2 {
+    font-size: clamp(2.4rem, 5vw, 4.8rem);
+    max-width: 12ch;
+}
+
+.hero-copy p {
+    max-width: 56ch;
+    font-size: 1.06rem;
+}
+
+.date-pill {
+    display: inline-flex;
+    margin-bottom: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.8);
+    font-weight: 700;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+}
+
+.button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 14px 20px;
+    border: 0;
+    border-radius: 18px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.button-primary {
+    color: white;
+    background: linear-gradient(135deg, #ff6b6b, #ff9b6a);
+    box-shadow: 0 12px 24px rgba(255, 107, 107, 0.28);
+}
+
+.button:disabled {
+    opacity: 0.6;
+    cursor: default;
+    transform: none;
+}
+
+.button-secondary {
+    color: var(--text);
+    background: linear-gradient(135deg, #fff6c7, #b2f0d7);
+    box-shadow: 0 12px 24px rgba(143, 227, 194, 0.24);
+}
+
+.hero-card,
+.feature-card,
+.tour-detail,
+.summary-card,
+.tracker-form,
+.diary-form,
+.panel,
+.flash {
+    backdrop-filter: blur(14px);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+}
+
+.hero-card,
+.feature-card,
+.tracker-form,
+.summary-card,
+.diary-form,
+.panel {
+    padding: 22px;
+}
+
+.hero-card {
+    transform: rotate(-2deg);
+}
+
+.hero-card ul,
+.auth-benefits ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.flash-stack {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.flash {
+    padding: 14px 18px;
+}
+
+.flash-success {
+    border-color: rgba(86, 174, 118, 0.35);
+}
+
+.flash-error {
+    border-color: rgba(214, 79, 79, 0.35);
+}
+
+.section {
+    margin-top: 34px;
+    padding: 16px 0;
+}
+
+.feature-grid,
+.tour-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-columns {
+    grid-template-columns: 1.1fr 0.9fr;
+}
+
+.feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--melon), var(--peach));
+    font-weight: 800;
+}
+
+.section-heading {
+    margin-bottom: 18px;
+}
+
+.section-heading h2 {
+    font-size: clamp(2rem, 4vw, 3.6rem);
+}
+
+.section-heading p:last-child {
+    max-width: 64ch;
+}
+
+.tour-card-wrap {
+    display: grid;
+    gap: 10px;
+}
+
+.tour-card {
+    width: 100%;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    background: var(--bg-alt);
+    text-align: left;
+    cursor: pointer;
+}
+
+.tour-card strong {
+    display: block;
+    margin-top: 6px;
+    color: var(--text);
+    font-size: 1.05rem;
+}
+
+.tour-card.is-active {
+    border-color: rgba(255, 123, 123, 0.6);
+    background: linear-gradient(135deg, rgba(255, 214, 212, 0.9), rgba(255, 250, 230, 0.95));
+}
+
+.lesson-form {
+    margin: 0;
+}
+
+.lesson-button {
+    width: 100%;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 14px;
+    background: rgba(44, 35, 64, 0.08);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.lesson-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.tour-detail,
+.tracker-layout,
+.diary-layout {
+    grid-template-columns: 1.25fr 0.75fr;
+}
+
+.tour-detail {
+    padding: 28px;
+}
+
+.tour-copy p,
+.tour-side p,
+.summary-card p,
+.feature-card p,
+.diary-entry p {
+    margin-bottom: 0;
+}
+
+.muted-note,
+.empty-state {
+    color: var(--muted);
+}
+
+.tour-tip {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(143, 227, 194, 0.24);
+    font-weight: 700;
+}
+
+.progress-bar {
+    height: 12px;
+    margin: 14px 0;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(44, 35, 64, 0.08);
+}
+
+.progress-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--coral), var(--melon));
+}
+
+.tracker-form,
+.diary-form,
+.profile-form,
+.auth-form,
+.goal-form,
+.support-form,
+.settings-form,
+.danger-form {
+    display: grid;
+    gap: 14px;
+}
+
+label {
+    display: grid;
+    gap: 8px;
+    font-weight: 700;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid rgba(44, 35, 64, 0.14);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.85);
+}
+
+textarea {
+    resize: vertical;
+}
+
+.tracker-summary,
+.diary-feed {
+    display: grid;
+    gap: 18px;
+}
+
+.panel-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.avatar {
+    display: grid;
+    place-items: center;
+    width: 68px;
+    height: 68px;
+    border-radius: 22px;
+    font-family: "Baloo 2", cursive;
+    font-size: 2rem;
+    font-weight: 800;
+    color: white;
+}
+
+.avatar-sunrise {
+    background: linear-gradient(135deg, #ff7b7b, #ffb38a);
+}
+
+.avatar-mint {
+    background: linear-gradient(135deg, #46b992, #8fe3c2);
+}
+
+.avatar-sky {
+    background: linear-gradient(135deg, #4a8cff, #95d9ff);
+}
+
+.stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 12px 0 20px;
+}
+
+.stat-card,
+.badge-card,
+.mini-item,
+.quest-item,
+.goal-item,
+.support-item,
+.calendar-day,
+.resource-card {
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.quest-head,
+.quest-list,
+.goal-list,
+.support-list,
+.calendar-grid,
+.resource-grid,
+.privacy-actions {
+    display: grid;
+    gap: 12px;
+}
+
+.quest-item.is-done,
+.goal-item.is-done,
+.calendar-day.is-logged,
+.calendar-day.is-predicted {
+    border: 1px solid rgba(44, 35, 64, 0.1);
+}
+
+.quest-item.is-done {
+    background: linear-gradient(135deg, rgba(178, 240, 215, 0.75), rgba(255, 246, 199, 0.75));
+}
+
+.goal-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.goal-item.is-done {
+    background: linear-gradient(135deg, rgba(178, 240, 215, 0.75), rgba(143, 227, 194, 0.55));
+}
+
+.calendar-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: 420px;
+    overflow: auto;
+}
+
+.calendar-day {
+    min-height: 92px;
+    align-content: start;
+}
+
+.calendar-day strong,
+.support-item strong,
+.goal-item strong,
+.quest-item strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.calendar-day span,
+.support-item span {
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.calendar-day.is-logged {
+    background: linear-gradient(135deg, rgba(255, 179, 138, 0.65), rgba(255, 214, 212, 0.82));
+}
+
+.calendar-day.is-predicted {
+    background: linear-gradient(135deg, rgba(149, 217, 255, 0.75), rgba(255, 246, 199, 0.75));
+}
+
+.resource-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.resource-card strong {
+    display: block;
+    margin: 8px 0 4px;
+}
+
+.resource-card p,
+.quest-item p,
+.goal-item p,
+.support-item p {
+    margin: 0;
+}
+
+.danger-button {
+    color: #7a1528;
+    background: rgba(255, 232, 236, 0.92);
+}
+
+.stat-card strong {
+    display: block;
+    font-size: 1.8rem;
+    font-family: "Baloo 2", cursive;
+    line-height: 1;
+}
+
+.mini-item strong,
+.badge-card strong,
+.diary-entry h4 {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.auth-form-single {
+    max-width: 560px;
+}
+
+.diary-list {
+    display: grid;
+    gap: 12px;
+}
+
+.diary-entry {
+    padding: 14px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(255, 246, 199, 0.7), rgba(178, 240, 215, 0.55));
+}
+
+.tour-preview-cta,
+.mirror-tour-list,
+.after-tour-grid,
+.onboarding-shell,
+.onboarding-grid {
+    display: grid;
+    gap: 20px;
+}
+
+.onboarding-columns {
+    align-items: start;
+}
+
+.onboarding-mini-label {
+    margin-top: 18px;
+}
+
+.mirror-step {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 24px;
+    align-items: center;
+}
+
+.mirror-step-copy {
+    display: grid;
+    gap: 14px;
+}
+
+.mirror-note {
+    padding: 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.mirror-note strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.mirror-note p {
+    margin: 0;
+}
+
+.mirror-complete-form {
+    max-width: 240px;
+}
+
+.diagram-card {
+    padding: 18px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 248, 239, 0.92));
+    border: 1px solid rgba(44, 35, 64, 0.08);
+}
+
+.diagram-frame {
+    display: grid;
+    place-items: center;
+    min-height: 280px;
+    padding: 12px;
+    border-radius: 22px;
+    background: radial-gradient(circle at top, rgba(255, 255, 255, 0.95), rgba(255, 243, 221, 0.85));
+}
+
+.diagram-frame svg {
+    width: 100%;
+    max-width: 280px;
+    height: auto;
+}
+
+.diagram-line,
+.diagram-soft {
+    fill: none;
+    stroke: #5c4a78;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.diagram-line {
+    stroke-width: 5;
+}
+
+.diagram-soft {
+    stroke-width: 3;
+}
+
+.diagram-fill {
+    fill: rgba(255, 179, 138, 0.45);
+    stroke: #5c4a78;
+    stroke-width: 4;
+}
+
+.diagram-dot {
+    fill: #5c4a78;
+}
+
+.diagram-accent {
+    fill: #ff7b7b;
+}
+
+.after-tour-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 920px) {
+    .hero-panel,
+    .feature-grid,
+    .tour-grid,
+    .tour-detail,
+    .tracker-layout,
+    .diary-layout,
+    .topbar,
+    .dashboard-columns,
+    .calendar-grid,
+    .goal-item,
+    .mirror-step,
+    .after-tour-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .topbar-links {
+        justify-content: flex-start;
+    }
+
+    .hero-card {
+        transform: none;
+    }
+
+    .resource-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .page-shell {
+        width: min(100% - 20px, 100%);
+        padding-top: 10px;
+    }
+
+    .hero {
+        padding: 20px;
+        border-radius: 24px;
+    }
+
+    .hero-copy h2,
+    .section-heading h2 {
+        line-height: 0.95;
+    }
+
+    .button,
+    .topbar-links a,
+    .nav-button {
+        width: 100%;
+    }
+}
