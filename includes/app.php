@@ -307,6 +307,7 @@ function loginUser(array $user): void
 {
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
+    unset($_SESSION['login_failures'], $_SESSION['login_blocked_until']);
 }
 
 function logoutUser(): void
@@ -402,6 +403,30 @@ function clearLoginFailures(string $email, string $ipAddress): void
         'email' => $email,
         'ip_address' => $ipAddress,
     ]);
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
+    unset($_SESSION['user_id']);
+}
+
+function loginGuard(): void
+{
+    $blockedUntil = (int) ($_SESSION['login_blocked_until'] ?? 0);
+    if ($blockedUntil > time()) {
+        throw new RuntimeException('Too many login attempts. Please wait a minute and try again.');
+    }
+}
+
+function registerLoginFailure(): void
+{
+    $failures = (int) ($_SESSION['login_failures'] ?? 0) + 1;
+    $_SESSION['login_failures'] = $failures;
+
+    if ($failures >= 5) {
+        $_SESSION['login_blocked_until'] = time() + 60;
+        $_SESSION['login_failures'] = 0;
+    }
 }
 
 function levelForXp(int $xp): int
@@ -1077,6 +1102,8 @@ function handleRegister(): void
 
 function handleLogin(): void
 {
+    loginGuard();
+
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
     $password = (string) ($_POST['password'] ?? '');
     $ipAddress = clientIpAddress();
@@ -1093,6 +1120,7 @@ function handleLogin(): void
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
         registerLoginFailure($email, $ipAddress);
+        registerLoginFailure();
         throw new RuntimeException('Email or password was incorrect.');
     }
 
