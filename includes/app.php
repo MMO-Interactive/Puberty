@@ -230,12 +230,37 @@ function needsOnboarding(array $user): bool
 
 function loginUser(array $user): void
 {
+    session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
+    unset($_SESSION['login_failures'], $_SESSION['login_blocked_until']);
 }
 
 function logoutUser(): void
 {
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
     unset($_SESSION['user_id']);
+}
+
+function loginGuard(): void
+{
+    $blockedUntil = (int) ($_SESSION['login_blocked_until'] ?? 0);
+    if ($blockedUntil > time()) {
+        throw new RuntimeException('Too many login attempts. Please wait a minute and try again.');
+    }
+}
+
+function registerLoginFailure(): void
+{
+    $failures = (int) ($_SESSION['login_failures'] ?? 0) + 1;
+    $_SESSION['login_failures'] = $failures;
+
+    if ($failures >= 5) {
+        $_SESSION['login_blocked_until'] = time() + 60;
+        $_SESSION['login_failures'] = 0;
+    }
 }
 
 function levelForXp(int $xp): int
@@ -638,6 +663,8 @@ function handleRegister(): void
 
 function handleLogin(): void
 {
+    loginGuard();
+
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
     $password = (string) ($_POST['password'] ?? '');
 
@@ -646,6 +673,7 @@ function handleLogin(): void
     $user = $statement->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
+        registerLoginFailure();
         throw new RuntimeException('Email or password was incorrect.');
     }
 
@@ -672,9 +700,17 @@ function handleProfile(): void
     $ageBand = trim((string) ($_POST['age_band'] ?? ''));
     $avatarColor = trim((string) ($_POST['avatar_color'] ?? 'sunrise'));
     $bio = trim((string) ($_POST['bio'] ?? ''));
+    $validAgeBands = ['', '8-10', '10-12', '12-14'];
+    $validAvatarColors = ['sunrise', 'mint', 'sky'];
 
     if ($displayName === '') {
         throw new RuntimeException('Display name is required.');
+    }
+    if (!in_array($ageBand, $validAgeBands, true)) {
+        throw new RuntimeException('Please choose a valid age range.');
+    }
+    if (!in_array($avatarColor, $validAvatarColors, true)) {
+        throw new RuntimeException('Please choose a valid avatar color.');
     }
 
     $statement = db()->prepare('UPDATE users SET display_name = :display_name, age_band = :age_band, avatar_color = :avatar_color, bio = :bio WHERE id = :id');
@@ -712,9 +748,17 @@ function handleOnboarding(): void
     $avatarColor = trim((string) ($_POST['avatar_color'] ?? 'sunrise'));
     $bio = trim((string) ($_POST['bio'] ?? ''));
     $firstGoal = trim((string) ($_POST['first_goal'] ?? ''));
+    $validAgeBands = ['8-10', '10-12', '12-14'];
+    $validAvatarColors = ['sunrise', 'mint', 'sky'];
 
     if ($displayName === '' || $ageBand === '' || $bio === '') {
         throw new RuntimeException('Display name, age range, and about me are required.');
+    }
+    if (!in_array($ageBand, $validAgeBands, true)) {
+        throw new RuntimeException('Please choose a valid age range.');
+    }
+    if (!in_array($avatarColor, $validAvatarColors, true)) {
+        throw new RuntimeException('Please choose a valid avatar color.');
     }
 
     $statement = db()->prepare('UPDATE users SET display_name = :display_name, age_band = :age_band, avatar_color = :avatar_color, bio = :bio WHERE id = :id');
@@ -762,6 +806,13 @@ function handleTracker(): void
 
     if ($startDate === '' || $mood === '') {
         throw new RuntimeException('Start date and mood are required.');
+    }
+    $parsedDate = DateTime::createFromFormat('Y-m-d', $startDate);
+    if (!$parsedDate || $parsedDate->format('Y-m-d') !== $startDate) {
+        throw new RuntimeException('Please enter a valid start date.');
+    }
+    if ($cycleLength < 20 || $cycleLength > 45) {
+        throw new RuntimeException('Cycle length should be between 20 and 45 days.');
     }
 
     $statement = db()->prepare('INSERT INTO tracker_entries (user_id, start_date, cycle_length, mood, notes, created_at) VALUES (:user_id, :start_date, :cycle_length, :mood, :notes, :created_at)');
@@ -929,12 +980,16 @@ function handleActions(): void
 function handleSettings(): void
 {
     $user = currentUser();
+    $currentPassword = (string) ($_POST['current_password'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
     $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
     if ($password === '') {
         flash('success', 'Settings saved.');
         return;
+    }
+    if ($currentPassword === '' || !password_verify($currentPassword, (string) $user['password_hash'])) {
+        throw new RuntimeException('Current password is incorrect.');
     }
 
     if (strlen($password) < 8) {
