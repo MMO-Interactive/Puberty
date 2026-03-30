@@ -12,6 +12,10 @@ function appNavLinks(?array $user, string $active = ''): array
         if (needsOnboarding($user)) {
             $links[] = ['href' => 'onboarding.php', 'label' => 'Welcome', 'key' => 'onboarding'];
         } else {
+            $links[] = ['href' => 'community.php', 'label' => 'Community', 'key' => 'community'];
+            $links[] = ['href' => 'notifications.php', 'label' => 'Alerts', 'key' => 'alerts'];
+            $links[] = ['href' => 'resources.php', 'label' => 'Resources', 'key' => 'resources'];
+            $links[] = ['href' => 'sex-education.php', 'label' => 'Sex Ed', 'key' => 'sex-ed'];
             $links[] = ['href' => 'guided-tour.php', 'label' => 'Body Tour', 'key' => 'tour'];
             $links[] = ['href' => 'dashboard.php', 'label' => 'Dashboard', 'key' => 'dashboard'];
             $links[] = ['href' => 'tracker.php', 'label' => 'Tracker', 'key' => 'tracker'];
@@ -19,6 +23,8 @@ function appNavLinks(?array $user, string $active = ''): array
             $links[] = ['href' => 'settings.php', 'label' => 'Settings', 'key' => 'settings'];
         }
     } else {
+        $links[] = ['href' => 'resources.php', 'label' => 'Resources', 'key' => 'resources'];
+        $links[] = ['href' => 'sex-education.php', 'label' => 'Sex Ed', 'key' => 'sex-ed'];
         $links[] = ['href' => 'guided-tour.php', 'label' => 'Body Tour', 'key' => 'tour'];
         $links[] = ['href' => 'index.php#join', 'label' => 'Join', 'key' => 'join'];
         $links[] = ['href' => 'index.php#login', 'label' => 'Log In', 'key' => 'login'];

@@ -17,6 +17,15 @@ $badgeCatalog = badgeCatalog();
 $questProgress = questProgress((int) $user['id']);
 $goals = goals((int) $user['id']);
 $completionPercent = (int) round((count($completed) / max(count($lessons), 1)) * 100);
+$nextLevelXp = ((int) $user['level'] * 40);
+$xpToNextLevel = max(0, $nextLevelXp - (int) $user['xp']);
+$nextQuest = null;
+foreach ($questProgress['items'] as $questItem) {
+    if (!$questItem['done']) {
+        $nextQuest = $questItem;
+        break;
+    }
+}
 
 renderPageStart(
     'Dashboard',
@@ -27,6 +36,8 @@ renderPageStart(
     $flashes,
     'dashboard',
     [
+        ['href' => 'community.php', 'label' => 'Open Community', 'class' => 'button-primary'],
+        ['href' => 'resources.php', 'label' => 'Open Resources', 'class' => 'button-secondary'],
         ['href' => 'guided-tour.php', 'label' => 'Open Guided Tour', 'class' => 'button-primary'],
         ['href' => 'tracker.php', 'label' => 'Open Tracker', 'class' => 'button-secondary'],
     ]
@@ -89,6 +100,20 @@ renderPageStart(
     </div>
 
     <div class="dashboard-columns">
+        <section class="panel">
+            <p class="card-label">Daily Game Plan</p>
+            <div class="quest-list">
+                <article class="quest-item">
+                    <strong>XP To Next Level: <?php echo (int) $xpToNextLevel; ?></strong>
+                    <p><?php echo (int) $user['xp']; ?> / <?php echo (int) $nextLevelXp; ?> XP toward level <?php echo (int) $user['level'] + 1; ?>.</p>
+                </article>
+                <article class="quest-item <?php echo $nextQuest ? '' : 'is-done'; ?>">
+                    <strong><?php echo $nextQuest ? h($nextQuest['title']) : 'All weekly quests complete'; ?></strong>
+                    <p><?php echo $nextQuest ? h($nextQuest['description']) : 'You unlocked everything this week. Keep your streak going!'; ?></p>
+                </article>
+            </div>
+        </section>
+
         <section class="panel">
             <p class="card-label">Weekly Quests</p>
             <div class="quest-head">
