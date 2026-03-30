@@ -11,6 +11,9 @@ $user = requireCompletedOnboarding();
 
 $flashes = consumeFlash();
 $resources = resourceLibrary();
+$healthIssues = healthIssuesForGirls();
+$safetyGuide = sexualAbuseSafetyGuide();
+$firstGynGuide = firstGynExamGuide();
 
 if (isset($_GET['export']) && $_GET['export'] === 'json') {
     header('Content-Type: application/json');
@@ -108,6 +111,45 @@ renderPageStart(
                     <span class="eyebrow"><?php echo h($resource['tag']); ?></span>
                     <strong><?php echo h($resource['title']); ?></strong>
                     <p><?php echo h($resource['text']); ?></p>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel">
+        <p class="card-label">20 Health Issues Girls May Experience</p>
+        <p class="muted-note">This education list is not a diagnosis tool. Ask a healthcare professional if symptoms worry you.</p>
+        <div class="resource-grid">
+            <?php foreach ($healthIssues as $issue): ?>
+                <article class="resource-card">
+                    <strong><?php echo h($issue['title']); ?></strong>
+                    <p><?php echo h($issue['summary']); ?></p>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel">
+        <p class="card-label">Sexual Abuse Safety Guide</p>
+        <p class="muted-note">Immediate danger: call 911. Sexual abuse is never the child’s fault.</p>
+        <div class="resource-grid">
+            <?php foreach ($safetyGuide as $item): ?>
+                <article class="resource-card">
+                    <strong><?php echo h($item['title']); ?></strong>
+                    <p><?php echo h($item['text']); ?></p>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <section class="panel">
+        <p class="card-label">First Gynecology Exam: What To Expect</p>
+        <p class="muted-note">This guide helps girls prepare questions and understand common exam steps before a first visit.</p>
+        <div class="resource-grid">
+            <?php foreach ($firstGynGuide as $item): ?>
+                <article class="resource-card">
+                    <strong><?php echo h($item['title']); ?></strong>
+                    <p><?php echo h($item['text']); ?></p>
                 </article>
             <?php endforeach; ?>
         </div>

@@ -25,6 +25,9 @@ $supportContacts = $user ? supportContacts((int) $user['id']) : [];
 $questProgress = $user ? questProgress((int) $user['id']) : ['items' => [], 'completed' => 0, 'total' => 0];
 $calendarDays = $user ? cycleCalendar((int) $user['id']) : [];
 $resources = resourceLibrary();
+$healthIssues = healthIssuesForGirls();
+$safetyGuide = sexualAbuseSafetyGuide();
+$firstGynGuide = firstGynExamGuide();
 
 if ($user && isset($_GET['export']) && $_GET['export'] === 'json') {
     header('Content-Type: application/json');
@@ -61,6 +64,9 @@ if ($user && isset($_GET['export']) && $_GET['export'] === 'json') {
                         <?php if ($onboardingNeeded): ?>
                             <a href="onboarding.php">Welcome</a>
                         <?php else: ?>
+                            <a href="community.php">Community</a>
+                            <a href="resources.php">Resources</a>
+                            <a href="sex-education.php">Sex Ed</a>
                             <a href="dashboard.php">Dashboard</a>
                             <a href="tracker.php">Tracker</a>
                             <a href="diary.php">Diary</a>
@@ -72,6 +78,8 @@ if ($user && isset($_GET['export']) && $_GET['export'] === 'json') {
                             <button type="submit" class="nav-button">Log Out</button>
                         </form>
                     <?php else: ?>
+                        <a href="resources.php">Resources</a>
+                        <a href="sex-education.php">Sex Ed</a>
                         <a href="#join">Join</a>
                         <a href="#login">Log In</a>
                     <?php endif; ?>
@@ -527,6 +535,45 @@ if ($user && isset($_GET['export']) && $_GET['export'] === 'json') {
                                         <span class="eyebrow"><?php echo h($resource['tag']); ?></span>
                                         <strong><?php echo h($resource['title']); ?></strong>
                                         <p><?php echo h($resource['text']); ?></p>
+                                    </article>
+                                <?php endforeach; ?>
+                            </div>
+                        </section>
+
+                        <section class="panel">
+                            <p class="card-label">20 Health Issues Girls May Experience</p>
+                            <p class="muted-note">This is a learning list only. For diagnosis or treatment, talk with a licensed clinician.</p>
+                            <div class="resource-grid">
+                                <?php foreach ($healthIssues as $issue): ?>
+                                    <article class="resource-card">
+                                        <strong><?php echo h($issue['title']); ?></strong>
+                                        <p><?php echo h($issue['summary']); ?></p>
+                                    </article>
+                                <?php endforeach; ?>
+                            </div>
+                        </section>
+
+                        <section class="panel">
+                            <p class="card-label">Sexual Abuse Safety Guide</p>
+                            <p class="muted-note">If you are in immediate danger, call 911 now. Abuse is never your fault.</p>
+                            <div class="resource-grid">
+                                <?php foreach ($safetyGuide as $item): ?>
+                                    <article class="resource-card">
+                                        <strong><?php echo h($item['title']); ?></strong>
+                                        <p><?php echo h($item['text']); ?></p>
+                                    </article>
+                                <?php endforeach; ?>
+                            </div>
+                        </section>
+
+                        <section class="panel">
+                            <p class="card-label">First Gynecology Exam: What To Expect</p>
+                            <p class="muted-note">Knowing what happens at a first visit can reduce fear and help you ask good questions.</p>
+                            <div class="resource-grid">
+                                <?php foreach ($firstGynGuide as $item): ?>
+                                    <article class="resource-card">
+                                        <strong><?php echo h($item['title']); ?></strong>
+                                        <p><?php echo h($item['text']); ?></p>
                                     </article>
                                 <?php endforeach; ?>
                             </div>

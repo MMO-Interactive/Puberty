@@ -28,6 +28,21 @@ const tourContent = {
         title: "Emotions can feel bigger for a while.",
         body: "Hormone changes can affect feelings, energy, and reactions.",
         tip: "Talking to a trusted adult can make changes easier to handle."
+    },
+    sleep: {
+        title: "Sleep patterns can shift during puberty.",
+        body: "You may feel sleepy earlier or later, and growth spurts can make you more tired than usual.",
+        tip: "A steady bedtime routine can improve energy and mood."
+    },
+    nutrition: {
+        title: "Fuel and hydration matter more while growing.",
+        body: "Regular meals, water, and iron-rich foods can support focus, growth, and cycle health.",
+        tip: "Keep a simple snack-and-water routine for school days."
+    },
+    boundaries: {
+        title: "Personal boundaries are part of body safety.",
+        body: "As you grow, it is important to know your body belongs to you and your comfort matters.",
+        tip: "If something feels wrong, tell a trusted adult right away."
     }
 };
 

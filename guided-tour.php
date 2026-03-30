@@ -61,6 +61,30 @@ $tourSteps = [
         'tip' => 'Write a diary note or talk to someone you trust after the tour if you want support.',
         'diagram' => 'heart',
     ],
+    [
+        'key' => 'sleep',
+        'title' => 'Sleep, Rest, And Energy Signals',
+        'look_for' => 'Notice signs of tiredness this week: harder mornings, afternoon crashes, or feeling extra hungry after school.',
+        'see_text' => 'Growth and hormone changes can affect sleep timing and energy. Feeling more tired during puberty is common.',
+        'tip' => 'A simple wind-down routine (screen break, water, quiet activity) can improve sleep.',
+        'diagram' => 'heart',
+    ],
+    [
+        'key' => 'nutrition',
+        'title' => 'Food, Water, And Growing Body Needs',
+        'look_for' => 'Think about your day: meals, snacks, and hydration. Notice when your energy is strongest or lowest.',
+        'see_text' => 'Puberty can increase appetite. Regular meals and hydration help with mood, focus, and cycle comfort.',
+        'tip' => 'Try carrying a water bottle and one balanced snack to school.',
+        'diagram' => 'body',
+    ],
+    [
+        'key' => 'boundaries',
+        'title' => 'Body Boundaries And Consent',
+        'look_for' => 'Reflect on your comfort zones: who you feel safe with, and what kinds of touch or comments feel okay or not okay.',
+        'see_text' => 'Your body belongs to you. You can set boundaries and ask trusted adults for help when something feels wrong.',
+        'tip' => 'Practice one boundary sentence: “I am not comfortable with that.”',
+        'diagram' => 'heart',
+    ],
 ];
 
 function renderTourDiagram(string $type): string
