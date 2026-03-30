@@ -71,6 +71,10 @@ renderPageStart(
                 <input type="hidden" name="csrf_token" value="<?php echo h(csrfToken()); ?>">
                 <input type="hidden" name="action" value="settings">
                 <label>
+                    Current password
+                    <input type="password" name="current_password" minlength="8" placeholder="Required to change password">
+                </label>
+                <label>
                     New password
                     <input type="password" name="password" minlength="8" placeholder="Leave blank to keep current password">
                 </label>
