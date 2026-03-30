@@ -123,6 +123,81 @@ function initializeDatabase(PDO $pdo): void
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )'
     );
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS community_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )'
+    );
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS community_likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            post_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, post_id),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(post_id) REFERENCES community_posts(id) ON DELETE CASCADE
+        )'
+    );
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS user_follows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            follower_id INTEGER NOT NULL,
+            following_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(follower_id, following_id),
+            FOREIGN KEY(follower_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(following_id) REFERENCES users(id) ON DELETE CASCADE
+        )'
+    );
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS community_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            post_id INTEGER NOT NULL,
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(post_id) REFERENCES community_posts(id) ON DELETE CASCADE
+        )'
+    );
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            actor_user_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            message TEXT NOT NULL,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(actor_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )'
+    );
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            ip_address TEXT NOT NULL,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            blocked_until INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            UNIQUE(email, ip_address)
+        )'
+    );
+
+    $cleanup = $pdo->prepare('DELETE FROM login_attempts WHERE blocked_until > 0 AND blocked_until < :now');
+    $cleanup->execute(['now' => time()]);
 }
 
 function now(): string
@@ -230,12 +305,103 @@ function needsOnboarding(array $user): bool
 
 function loginUser(array $user): void
 {
+    session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
 }
 
 function logoutUser(): void
 {
-    unset($_SESSION['user_id']);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION = [];
+
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params['path'],
+                $params['domain'],
+                (bool) $params['secure'],
+                (bool) $params['httponly']
+            );
+        }
+
+        session_destroy();
+        session_start();
+        session_regenerate_id(true);
+    }
+}
+
+function clientIpAddress(): string
+{
+    $ip = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+
+    return $ip !== '' ? substr($ip, 0, 45) : 'unknown';
+}
+
+function loginGuard(string $email, string $ipAddress): void
+{
+    $blockedUntil = (int) fetchScalar(
+        'SELECT blocked_until FROM login_attempts WHERE email = :email AND ip_address = :ip_address',
+        ['email' => $email, 'ip_address' => $ipAddress],
+        0
+    );
+
+    if ($blockedUntil > time()) {
+        throw new RuntimeException('Too many login attempts. Please wait a minute and try again.');
+    }
+}
+
+function registerLoginFailure(string $email, string $ipAddress): void
+{
+    $statement = db()->prepare(
+        'SELECT id, failed_count FROM login_attempts WHERE email = :email AND ip_address = :ip_address'
+    );
+    $statement->execute(['email' => $email, 'ip_address' => $ipAddress]);
+    $row = $statement->fetch();
+
+    if (!$row) {
+        $insert = db()->prepare(
+            'INSERT INTO login_attempts (email, ip_address, failed_count, blocked_until, updated_at)
+             VALUES (:email, :ip_address, :failed_count, :blocked_until, :updated_at)'
+        );
+        $insert->execute([
+            'email' => $email,
+            'ip_address' => $ipAddress,
+            'failed_count' => 1,
+            'blocked_until' => 0,
+            'updated_at' => now(),
+        ]);
+        return;
+    }
+
+    $failures = (int) $row['failed_count'] + 1;
+    $blockedUntil = $failures >= 5 ? time() + 60 : 0;
+    $nextFailures = $failures >= 5 ? 0 : $failures;
+
+    $update = db()->prepare(
+        'UPDATE login_attempts
+         SET failed_count = :failed_count,
+             blocked_until = :blocked_until,
+             updated_at = :updated_at
+         WHERE id = :id'
+    );
+    $update->execute([
+        'failed_count' => $nextFailures,
+        'blocked_until' => $blockedUntil,
+        'updated_at' => now(),
+        'id' => $row['id'],
+    ]);
+}
+
+function clearLoginFailures(string $email, string $ipAddress): void
+{
+    $statement = db()->prepare('DELETE FROM login_attempts WHERE email = :email AND ip_address = :ip_address');
+    $statement->execute([
+        'email' => $email,
+        'ip_address' => $ipAddress,
+    ]);
 }
 
 function levelForXp(int $xp): int
@@ -317,8 +483,11 @@ function badgeCatalog(): array
         'cycle-captain' => ['title' => 'Cycle Captain', 'description' => 'Logged a tracker entry'],
         'journal-spark' => ['title' => 'Journal Spark', 'description' => 'Wrote a diary entry'],
         'curious-mind' => ['title' => 'Curious Mind', 'description' => 'Completed 3 body tour lessons'],
-        'body-guide' => ['title' => 'Body Guide', 'description' => 'Completed all 6 body tour lessons'],
+        'body-guide' => ['title' => 'Body Guide', 'description' => 'Completed every body tour lesson'],
         'streak-three' => ['title' => 'Glow Streak', 'description' => 'Stayed active for 3 days'],
+        'streak-seven' => ['title' => 'Shining Week', 'description' => 'Stayed active for 7 days'],
+        'lesson-sprinter' => ['title' => 'Lesson Sprinter', 'description' => 'Completed 2 lessons in one day'],
+        'quest-master' => ['title' => 'Quest Master', 'description' => 'Completed every weekly quest'],
         'goal-getter' => ['title' => 'Goal Getter', 'description' => 'Completed a confidence goal'],
         'support-circle' => ['title' => 'Support Circle', 'description' => 'Added a trusted support contact'],
     ];
@@ -341,6 +510,9 @@ function lessonCatalog(): array
         'hair' => ['tag' => 'Hair', 'title' => 'New body hair', 'body' => 'Hair can grow under the arms and around the vulva, and its texture can vary.', 'tip' => 'Keeping it or grooming it is a personal choice.'],
         'periods' => ['tag' => 'Cycle', 'title' => 'Periods & discharge', 'body' => 'Discharge can begin before periods. Early cycles can be irregular.', 'tip' => 'Tracking dates helps you prepare and notice patterns.'],
         'feelings' => ['tag' => 'Mind', 'title' => 'Moods & emotions', 'body' => 'Hormone changes can affect feelings, energy, and reactions.', 'tip' => 'Talking to a trusted adult can make changes easier to handle.'],
+        'sleep' => ['tag' => 'Rest', 'title' => 'Sleep & energy', 'body' => 'Your sleep schedule can shift during puberty, and you may feel extra tired after growth spurts.', 'tip' => 'Aim for a bedtime routine and enough sleep to support mood and growth.'],
+        'nutrition' => ['tag' => 'Fuel', 'title' => 'Food & hydration', 'body' => 'Growing bodies need regular meals, water, and iron-rich foods, especially after periods begin.', 'tip' => 'Balanced snacks and water can help with focus, energy, and cramps.'],
+        'boundaries' => ['tag' => 'Safety', 'title' => 'Boundaries & consent', 'body' => 'As your body changes, personal boundaries matter even more at home, school, and online.', 'tip' => 'You can say no, ask for space, and tell a trusted adult if something feels wrong.'],
     ];
 }
 
@@ -397,6 +569,249 @@ function supportContacts(int $userId): array
     $statement->execute(['user_id' => $userId]);
 
     return $statement->fetchAll();
+}
+
+function communityPosts(int $limit = 20): array
+{
+    $statement = db()->prepare(
+        'SELECT p.id,
+                p.user_id,
+                p.body,
+                p.created_at,
+                u.display_name,
+                COUNT(l.id) AS like_count
+         FROM community_posts p
+         INNER JOIN users u ON u.id = p.user_id
+         LEFT JOIN community_likes l ON l.post_id = p.id
+         GROUP BY p.id
+         ORDER BY p.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll();
+}
+
+function createCommunityPost(int $userId, string $body): void
+{
+    $statement = db()->prepare(
+        'INSERT INTO community_posts (user_id, body, created_at)
+         VALUES (:user_id, :body, :created_at)'
+    );
+    $statement->execute([
+        'user_id' => $userId,
+        'body' => $body,
+        'created_at' => now(),
+    ]);
+}
+
+function likeCommunityPost(int $userId, int $postId): bool
+{
+    $statement = db()->prepare(
+        'INSERT OR IGNORE INTO community_likes (user_id, post_id, created_at)
+         VALUES (:user_id, :post_id, :created_at)'
+    );
+    $statement->execute([
+        'user_id' => $userId,
+        'post_id' => $postId,
+        'created_at' => now(),
+    ]);
+
+    return $statement->rowCount() > 0;
+}
+
+function followUser(int $followerId, int $followingId): bool
+{
+    if ($followerId === $followingId) {
+        return false;
+    }
+
+    $statement = db()->prepare(
+        'INSERT OR IGNORE INTO user_follows (follower_id, following_id, created_at)
+         VALUES (:follower_id, :following_id, :created_at)'
+    );
+    $statement->execute([
+        'follower_id' => $followerId,
+        'following_id' => $followingId,
+        'created_at' => now(),
+    ]);
+
+    return $statement->rowCount() > 0;
+}
+
+function unfollowUser(int $followerId, int $followingId): bool
+{
+    $statement = db()->prepare(
+        'DELETE FROM user_follows WHERE follower_id = :follower_id AND following_id = :following_id'
+    );
+    $statement->execute([
+        'follower_id' => $followerId,
+        'following_id' => $followingId,
+    ]);
+
+    return $statement->rowCount() > 0;
+}
+
+function isFollowing(int $followerId, int $followingId): bool
+{
+    return (int) fetchScalar(
+        'SELECT COUNT(*) FROM user_follows WHERE follower_id = :follower_id AND following_id = :following_id',
+        ['follower_id' => $followerId, 'following_id' => $followingId],
+        0
+    ) > 0;
+}
+
+function followerCount(int $userId): int
+{
+    return (int) fetchScalar(
+        'SELECT COUNT(*) FROM user_follows WHERE following_id = :user_id',
+        ['user_id' => $userId],
+        0
+    );
+}
+
+function followingCount(int $userId): int
+{
+    return (int) fetchScalar(
+        'SELECT COUNT(*) FROM user_follows WHERE follower_id = :user_id',
+        ['user_id' => $userId],
+        0
+    );
+}
+
+function suggestedUsers(int $userId, int $limit = 8): array
+{
+    $statement = db()->prepare(
+        'SELECT u.id, u.display_name, u.bio
+         FROM users u
+         WHERE u.id != :user_id
+           AND u.id NOT IN (
+               SELECT following_id FROM user_follows WHERE follower_id = :user_id
+           )
+         ORDER BY u.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':user_id', $userId, PDO::PARAM_INT);
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll();
+}
+
+function postsByUser(int $userId, int $limit = 20): array
+{
+    $statement = db()->prepare(
+        'SELECT p.id,
+                p.user_id,
+                p.body,
+                p.created_at,
+                u.display_name,
+                COUNT(l.id) AS like_count
+         FROM community_posts p
+         INNER JOIN users u ON u.id = p.user_id
+         LEFT JOIN community_likes l ON l.post_id = p.id
+         WHERE p.user_id = :user_id
+         GROUP BY p.id
+         ORDER BY p.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':user_id', $userId, PDO::PARAM_INT);
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll();
+}
+
+function createNotification(int $userId, int $actorUserId, string $type, string $message): void
+{
+    if ($userId === $actorUserId) {
+        return;
+    }
+
+    $statement = db()->prepare(
+        'INSERT INTO notifications (user_id, actor_user_id, type, message, created_at)
+         VALUES (:user_id, :actor_user_id, :type, :message, :created_at)'
+    );
+    $statement->execute([
+        'user_id' => $userId,
+        'actor_user_id' => $actorUserId,
+        'type' => $type,
+        'message' => $message,
+        'created_at' => now(),
+    ]);
+}
+
+function notificationsForUser(int $userId, int $limit = 40): array
+{
+    $statement = db()->prepare(
+        'SELECT n.id, n.user_id, n.actor_user_id, n.type, n.message, n.is_read, n.created_at, u.display_name AS actor_name
+         FROM notifications n
+         INNER JOIN users u ON u.id = n.actor_user_id
+         WHERE n.user_id = :user_id
+         ORDER BY n.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':user_id', $userId, PDO::PARAM_INT);
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll();
+}
+
+function unreadNotificationCount(int $userId): int
+{
+    return (int) fetchScalar(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND is_read = 0',
+        ['user_id' => $userId],
+        0
+    );
+}
+
+function markNotificationsRead(int $userId): void
+{
+    $statement = db()->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = :user_id AND is_read = 0');
+    $statement->execute(['user_id' => $userId]);
+}
+
+function commentsForPost(int $postId, int $limit = 6): array
+{
+    $statement = db()->prepare(
+        'SELECT c.id, c.user_id, c.post_id, c.body, c.created_at, u.display_name
+         FROM community_comments c
+         INNER JOIN users u ON u.id = c.user_id
+         WHERE c.post_id = :post_id
+         ORDER BY c.id DESC
+         LIMIT :limit'
+    );
+    $statement->bindValue(':post_id', $postId, PDO::PARAM_INT);
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll();
+}
+
+function commentCountForPost(int $postId): int
+{
+    return (int) fetchScalar(
+        'SELECT COUNT(*) FROM community_comments WHERE post_id = :post_id',
+        ['post_id' => $postId],
+        0
+    );
+}
+
+function createCommunityComment(int $userId, int $postId, string $body): void
+{
+    $statement = db()->prepare(
+        'INSERT INTO community_comments (user_id, post_id, body, created_at)
+         VALUES (:user_id, :post_id, :body, :created_at)'
+    );
+    $statement->execute([
+        'user_id' => $userId,
+        'post_id' => $postId,
+        'body' => $body,
+        'created_at' => now(),
+    ]);
 }
 
 function questCatalog(): array
@@ -490,6 +905,30 @@ function maybeAwardStreakBadge(int $userId): void
     $streak = (int) fetchScalar('SELECT streak FROM users WHERE id = :id', ['id' => $userId], 0);
     if ($streak >= 3) {
         awardBadge($userId, 'streak-three');
+    }
+    if ($streak >= 7) {
+        awardBadge($userId, 'streak-seven');
+    }
+}
+
+function maybeAwardLessonSprinter(int $userId): void
+{
+    $todayLessons = (int) fetchScalar(
+        'SELECT COUNT(*) FROM lesson_completions WHERE user_id = :user_id AND date(completed_at) = date("now")',
+        ['user_id' => $userId],
+        0
+    );
+
+    if ($todayLessons >= 2) {
+        awardBadge($userId, 'lesson-sprinter');
+    }
+}
+
+function maybeAwardQuestMaster(int $userId): void
+{
+    $progress = questProgress($userId);
+    if ($progress['total'] > 0 && $progress['completed'] >= $progress['total']) {
+        awardBadge($userId, 'quest-master');
     }
 }
 
@@ -640,15 +1079,24 @@ function handleLogin(): void
 {
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
     $password = (string) ($_POST['password'] ?? '');
+    $ipAddress = clientIpAddress();
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new RuntimeException('Email or password was incorrect.');
+    }
+
+    loginGuard($email, $ipAddress);
 
     $statement = db()->prepare('SELECT * FROM users WHERE email = :email');
     $statement->execute(['email' => $email]);
     $user = $statement->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
+        registerLoginFailure($email, $ipAddress);
         throw new RuntimeException('Email or password was incorrect.');
     }
 
+    clearLoginFailures($email, $ipAddress);
     loginUser($user);
     updateStreak((int) $user['id']);
     flash('success', 'Welcome back.');
@@ -672,9 +1120,17 @@ function handleProfile(): void
     $ageBand = trim((string) ($_POST['age_band'] ?? ''));
     $avatarColor = trim((string) ($_POST['avatar_color'] ?? 'sunrise'));
     $bio = trim((string) ($_POST['bio'] ?? ''));
+    $validAgeBands = ['', '8-10', '10-12', '12-14'];
+    $validAvatarColors = ['sunrise', 'mint', 'sky'];
 
     if ($displayName === '') {
         throw new RuntimeException('Display name is required.');
+    }
+    if (!in_array($ageBand, $validAgeBands, true)) {
+        throw new RuntimeException('Please choose a valid age range.');
+    }
+    if (!in_array($avatarColor, $validAvatarColors, true)) {
+        throw new RuntimeException('Please choose a valid avatar color.');
     }
 
     $statement = db()->prepare('UPDATE users SET display_name = :display_name, age_band = :age_band, avatar_color = :avatar_color, bio = :bio WHERE id = :id');
@@ -712,9 +1168,17 @@ function handleOnboarding(): void
     $avatarColor = trim((string) ($_POST['avatar_color'] ?? 'sunrise'));
     $bio = trim((string) ($_POST['bio'] ?? ''));
     $firstGoal = trim((string) ($_POST['first_goal'] ?? ''));
+    $validAgeBands = ['8-10', '10-12', '12-14'];
+    $validAvatarColors = ['sunrise', 'mint', 'sky'];
 
     if ($displayName === '' || $ageBand === '' || $bio === '') {
         throw new RuntimeException('Display name, age range, and about me are required.');
+    }
+    if (!in_array($ageBand, $validAgeBands, true)) {
+        throw new RuntimeException('Please choose a valid age range.');
+    }
+    if (!in_array($avatarColor, $validAvatarColors, true)) {
+        throw new RuntimeException('Please choose a valid avatar color.');
     }
 
     $statement = db()->prepare('UPDATE users SET display_name = :display_name, age_band = :age_band, avatar_color = :avatar_color, bio = :bio WHERE id = :id');
@@ -759,9 +1223,20 @@ function handleTracker(): void
     $cycleLength = (int) ($_POST['cycle_length'] ?? 28);
     $mood = trim((string) ($_POST['mood'] ?? ''));
     $notes = trim((string) ($_POST['notes'] ?? ''));
+    $validMoods = ['Happy', 'Okay', 'Tired', 'Crampy', 'Emotional'];
 
     if ($startDate === '' || $mood === '') {
         throw new RuntimeException('Start date and mood are required.');
+    }
+    $parsedDate = DateTime::createFromFormat('Y-m-d', $startDate);
+    if (!$parsedDate || $parsedDate->format('Y-m-d') !== $startDate) {
+        throw new RuntimeException('Please enter a valid start date.');
+    }
+    if ($cycleLength < 20 || $cycleLength > 45) {
+        throw new RuntimeException('Cycle length should be between 20 and 45 days.');
+    }
+    if (!in_array($mood, $validMoods, true)) {
+        throw new RuntimeException('Please choose a valid mood option.');
     }
 
     $statement = db()->prepare('INSERT INTO tracker_entries (user_id, start_date, cycle_length, mood, notes, created_at) VALUES (:user_id, :start_date, :cycle_length, :mood, :notes, :created_at)');
@@ -778,10 +1253,12 @@ function handleTracker(): void
     maybeAwardStreakBadge((int) $user['id']);
 
     if (awardBadge((int) $user['id'], 'cycle-captain')) {
+        maybeAwardQuestMaster((int) $user['id']);
         flash('success', 'Tracker entry saved. Badge earned: Cycle Captain.');
         return;
     }
 
+    maybeAwardQuestMaster((int) $user['id']);
     flash('success', 'Tracker entry saved.');
 }
 
@@ -807,10 +1284,12 @@ function handleDiary(): void
     maybeAwardStreakBadge((int) $user['id']);
 
     if (awardBadge((int) $user['id'], 'journal-spark')) {
+        maybeAwardQuestMaster((int) $user['id']);
         flash('success', 'Diary saved. Badge earned: Journal Spark.');
         return;
     }
 
+    maybeAwardQuestMaster((int) $user['id']);
     flash('success', 'Diary saved.');
 }
 
@@ -837,9 +1316,11 @@ function handleLesson(): void
     if ($completedCount >= 3) {
         awardBadge((int) $user['id'], 'curious-mind');
     }
-    if ($completedCount >= 6) {
+    if ($completedCount >= count($lessons)) {
         awardBadge((int) $user['id'], 'body-guide');
     }
+    maybeAwardLessonSprinter((int) $user['id']);
+    maybeAwardQuestMaster((int) $user['id']);
 
     flash('success', 'Lesson completed. Progress updated.');
 }
@@ -908,6 +1389,30 @@ function handleActions(): void
                 requireAuth();
                 handleSupportContact();
                 break;
+            case 'community_post':
+                requireAuth();
+                handleCommunityPost();
+                break;
+            case 'community_like':
+                requireAuth();
+                handleCommunityLike();
+                break;
+            case 'community_comment':
+                requireAuth();
+                handleCommunityComment();
+                break;
+            case 'follow_user':
+                requireAuth();
+                handleFollowUser();
+                break;
+            case 'unfollow_user':
+                requireAuth();
+                handleUnfollowUser();
+                break;
+            case 'notifications_read':
+                requireAuth();
+                handleNotificationsRead();
+                break;
             case 'settings':
                 requireAuth();
                 handleSettings();
@@ -929,12 +1434,16 @@ function handleActions(): void
 function handleSettings(): void
 {
     $user = currentUser();
+    $currentPassword = (string) ($_POST['current_password'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
     $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
     if ($password === '') {
         flash('success', 'Settings saved.');
         return;
+    }
+    if ($currentPassword === '' || !password_verify($currentPassword, (string) $user['password_hash'])) {
+        throw new RuntimeException('Current password is incorrect.');
     }
 
     if (strlen($password) < 8) {
@@ -1035,8 +1544,126 @@ function handleSupportContact(): void
     addXp((int) $user['id'], 5);
     maybeAwardStreakBadge((int) $user['id']);
     awardBadge((int) $user['id'], 'support-circle');
+    maybeAwardQuestMaster((int) $user['id']);
     markOnboardingTaskComplete((int) $user['id'], 'support');
     flash('success', 'Trusted support contact added.');
+}
+
+function handleCommunityPost(): void
+{
+    $user = currentUser();
+    $body = trim((string) ($_POST['body'] ?? ''));
+
+    if ($body === '') {
+        throw new RuntimeException('Post text cannot be empty.');
+    }
+    if (mb_strlen($body) > 320) {
+        throw new RuntimeException('Posts must be 320 characters or fewer.');
+    }
+
+    createCommunityPost((int) $user['id'], $body);
+    addXp((int) $user['id'], 2);
+    maybeAwardStreakBadge((int) $user['id']);
+    flash('success', 'Post shared with the community feed.');
+}
+
+function handleCommunityLike(): void
+{
+    $user = currentUser();
+    $postId = (int) ($_POST['post_id'] ?? 0);
+    if ($postId <= 0) {
+        throw new RuntimeException('Post not found.');
+    }
+
+    if (!likeCommunityPost((int) $user['id'], $postId)) {
+        flash('success', 'You already liked this post.');
+        return;
+    }
+
+    $postOwnerId = (int) fetchScalar(
+        'SELECT user_id FROM community_posts WHERE id = :post_id',
+        ['post_id' => $postId],
+        0
+    );
+    if ($postOwnerId > 0) {
+        createNotification($postOwnerId, (int) $user['id'], 'like', 'liked your post.');
+    }
+
+    addXp((int) $user['id'], 1);
+    maybeAwardStreakBadge((int) $user['id']);
+    flash('success', 'Post liked.');
+}
+
+function handleFollowUser(): void
+{
+    $user = currentUser();
+    $targetUserId = (int) ($_POST['target_user_id'] ?? 0);
+    if ($targetUserId <= 0) {
+        throw new RuntimeException('User not found.');
+    }
+
+    if (!followUser((int) $user['id'], $targetUserId)) {
+        flash('success', 'Already following this user.');
+        return;
+    }
+
+    createNotification($targetUserId, (int) $user['id'], 'follow', 'started following you.');
+    addXp((int) $user['id'], 1);
+    flash('success', 'Now following this user.');
+}
+
+function handleUnfollowUser(): void
+{
+    $user = currentUser();
+    $targetUserId = (int) ($_POST['target_user_id'] ?? 0);
+    if ($targetUserId <= 0) {
+        throw new RuntimeException('User not found.');
+    }
+
+    if (!unfollowUser((int) $user['id'], $targetUserId)) {
+        flash('success', 'You were not following this user.');
+        return;
+    }
+
+    flash('success', 'Unfollowed user.');
+}
+
+function handleCommunityComment(): void
+{
+    $user = currentUser();
+    $postId = (int) ($_POST['post_id'] ?? 0);
+    $body = trim((string) ($_POST['body'] ?? ''));
+
+    if ($postId <= 0) {
+        throw new RuntimeException('Post not found.');
+    }
+    if ($body === '') {
+        throw new RuntimeException('Comment cannot be empty.');
+    }
+    if (mb_strlen($body) > 240) {
+        throw new RuntimeException('Comments must be 240 characters or fewer.');
+    }
+
+    createCommunityComment((int) $user['id'], $postId, $body);
+    $postOwnerId = (int) fetchScalar(
+        'SELECT user_id FROM community_posts WHERE id = :post_id',
+        ['post_id' => $postId],
+        0
+    );
+    if ($postOwnerId > 0) {
+        createNotification($postOwnerId, (int) $user['id'], 'comment', 'commented on your post.');
+    }
+
+    addXp((int) $user['id'], 1);
+    maybeAwardStreakBadge((int) $user['id']);
+    flash('success', 'Comment posted.');
+}
+
+function handleNotificationsRead(): void
+{
+    $user = currentUser();
+    markNotificationsRead((int) $user['id']);
+    flash('success', 'Notifications marked as read.');
 }
 
 function exportUserData(int $userId): string
@@ -1094,5 +1721,129 @@ function resourceLibrary(): array
             'tag' => 'Health',
             'text' => 'Severe pain, very heavy bleeding, dizziness, or strong worry are good reasons to talk with a doctor.',
         ],
+    ];
+}
+
+function healthIssuesForGirls(): array
+{
+    return [
+        ['title' => 'Acne', 'summary' => 'Pimples from hormone-related oil changes, often on face, chest, or back.'],
+        ['title' => 'Painful periods (dysmenorrhea)', 'summary' => 'Cramping that can affect school, sleep, or sports during periods.'],
+        ['title' => 'Heavy bleeding (menorrhagia)', 'summary' => 'Periods with very heavy flow, large clots, or soaking products quickly.'],
+        ['title' => 'Irregular periods', 'summary' => 'Cycles that are hard to predict, especially in early puberty or with stress changes.'],
+        ['title' => 'Premenstrual syndrome (PMS)', 'summary' => 'Mood and body symptoms before periods, like bloating or irritability.'],
+        ['title' => 'Premenstrual dysphoric disorder (PMDD)', 'summary' => 'Severe mood symptoms before periods that disrupt daily life.'],
+        ['title' => 'Anemia', 'summary' => 'Low iron, sometimes linked to heavy periods; may cause fatigue or dizziness.'],
+        ['title' => 'Polycystic ovary syndrome (PCOS)', 'summary' => 'Can include irregular cycles, acne, hair changes, and insulin-related symptoms.'],
+        ['title' => 'Thyroid disorders', 'summary' => 'Thyroid hormone imbalance can affect energy, mood, and period regularity.'],
+        ['title' => 'Urinary tract infection (UTI)', 'summary' => 'Burning with urination, frequent urges, or lower belly discomfort.'],
+        ['title' => 'Yeast infection', 'summary' => 'Itching, irritation, and thick discharge caused by yeast overgrowth.'],
+        ['title' => 'Bacterial vaginosis', 'summary' => 'Vaginal imbalance that can cause unusual odor or discharge changes.'],
+        ['title' => 'Endometriosis', 'summary' => 'Tissue similar to uterine lining grows outside uterus, causing pain symptoms.'],
+        ['title' => 'Ovarian cysts', 'summary' => 'Fluid-filled sacs on ovaries that may cause pelvic pain or bloating.'],
+        ['title' => 'Fibroids', 'summary' => 'Non-cancerous uterine growths that may increase bleeding or pressure.'],
+        ['title' => 'Migraine headaches', 'summary' => 'Severe headaches that can be linked to cycle hormone fluctuations.'],
+        ['title' => 'Anxiety disorders', 'summary' => 'Persistent worry, panic, or physical stress symptoms affecting routines.'],
+        ['title' => 'Depression', 'summary' => 'Low mood, low energy, or loss of interest lasting more than two weeks.'],
+        ['title' => 'Eating disorders', 'summary' => 'Unhealthy eating patterns and body-image distress needing early support.'],
+        ['title' => 'Sleep disorders', 'summary' => 'Trouble falling/staying asleep that impacts mood, focus, and recovery.'],
+    ];
+}
+
+function sexualAbuseSafetyGuide(): array
+{
+    return [
+        [
+            'title' => 'What sexual abuse means',
+            'text' => 'Sexual abuse is any sexual touch, request, message, photo, or activity that is forced, pressured, secret, or not age-appropriate. It is never the child’s fault.',
+        ],
+        [
+            'title' => 'Common warning signs',
+            'text' => 'Warning signs can include fear of a specific person, sudden behavior changes, sleep problems, school changes, unexplained injuries, or sexual language beyond age level.',
+        ],
+        [
+            'title' => 'Body boundaries you can use',
+            'text' => 'Your body belongs to you. You can say: “No.”, “Stop.”, “I am not comfortable.”, and leave to find a trusted adult.',
+        ],
+        [
+            'title' => 'Online safety counts too',
+            'text' => 'Abuse can happen online through grooming, pressure for photos, secret chats, or threats. Do not share private images and tell a trusted adult immediately if someone pressures you.',
+        ],
+        [
+            'title' => 'What to do right away',
+            'text' => 'If you feel unsafe: get to a safer place, call emergency services if needed, and tell a trusted adult (parent, guardian, school counselor, nurse, teacher, or coach) as soon as possible.',
+        ],
+        [
+            'title' => 'Hotlines and reporting (U.S.)',
+            'text' => 'National Sexual Assault Hotline (RAINN): 800-656-HOPE (4673). Childhelp National Child Abuse Hotline: 800-4-A-CHILD (800-422-4453). If immediate danger, call 911.',
+        ],
+        [
+            'title' => 'If someone tells you they were abused',
+            'text' => 'Believe them, stay calm, thank them for telling you, and report to appropriate authorities or child protection services according to local law and school policy.',
+        ],
+        [
+            'title' => 'Healing and support',
+            'text' => 'Support can include trauma-informed counseling, medical care, and trusted adults who help with safety planning. Recovery takes time and help is available.',
+        ],
+    ];
+}
+
+function firstGynExamGuide(): array
+{
+    return [
+        [
+            'title' => 'When a first gynecology visit may happen',
+            'text' => 'Many girls have a first gynecology-focused visit in the teen years, or earlier if they have severe cramps, period concerns, pain, or other symptoms.',
+        ],
+        [
+            'title' => 'You can bring support',
+            'text' => 'You can bring a parent, guardian, or trusted adult. You can also ask to speak privately with the clinician for part of the visit.',
+        ],
+        [
+            'title' => 'What the appointment usually includes',
+            'text' => 'Most first visits focus on talking: period history, pain, discharge, mood, sexual health questions, and general body changes.',
+        ],
+        [
+            'title' => 'Physical exam is often simple',
+            'text' => 'Many first visits do not require an internal exam. The clinician may check height, weight, blood pressure, and possibly a brief external exam only if needed.',
+        ],
+        [
+            'title' => 'You can ask for explanations',
+            'text' => 'Before any exam step, you can ask what will happen, why it is needed, and if there are options. Consent and comfort matter.',
+        ],
+        [
+            'title' => 'Questions to ask',
+            'text' => 'Examples: “Are my cycles normal?”, “What helps cramps?”, “When should I worry about heavy bleeding?”, and “How do I manage discharge safely?”',
+        ],
+        [
+            'title' => 'What to bring',
+            'text' => 'Bring period dates if tracked, symptom notes, medicine list, allergies, and any questions written down so you do not forget them.',
+        ],
+        [
+            'title' => 'Privacy and confidentiality',
+            'text' => 'Rules vary by state and clinic, but many places offer confidential time for teens to discuss sensitive topics safely.',
+        ],
+        [
+            'title' => 'After the visit',
+            'text' => 'You may receive a care plan (symptom tracking, medication guidance, labs, or follow-up). Ask when to return and what warning signs need urgent care.',
+        ],
+    ];
+}
+
+function sexEducationModules(): array
+{
+    return [
+        ['title' => 'Puberty and body changes', 'text' => 'Puberty includes changes in hormones, growth, skin, body hair, periods, erections, and emotions. Timing differs for everyone.'],
+        ['title' => 'Reproductive anatomy basics', 'text' => 'Learn the names and functions of body parts (vulva, vagina, uterus, ovaries, penis, testes) using respectful, correct language.'],
+        ['title' => 'Menstrual cycle basics', 'text' => 'Cycles can be irregular at first. Tracking dates, symptoms, and flow can help you prepare and notice patterns.'],
+        ['title' => 'Consent and boundaries', 'text' => 'Consent means clear, ongoing agreement. You can say no at any time, and pressure or threats are never consent.'],
+        ['title' => 'Healthy relationships', 'text' => 'Healthy relationships include respect, honesty, safety, and communication. Control, fear, and isolation are warning signs.'],
+        ['title' => 'Digital safety and sexting pressure', 'text' => 'Private images can spread quickly. If pressured to send photos, say no and tell a trusted adult immediately.'],
+        ['title' => 'STIs and prevention', 'text' => 'STIs are infections that can spread through sexual contact. Testing, condoms, and medical care reduce risk and complications.'],
+        ['title' => 'Pregnancy basics', 'text' => 'Pregnancy can happen when sperm meets egg. Learning about fertility and contraception helps informed decision-making later.'],
+        ['title' => 'Contraception overview', 'text' => 'Contraception methods include condoms, pills, implants, IUDs, and others. A clinician can explain benefits and side effects.'],
+        ['title' => 'Sexual orientation and identity', 'text' => 'People may discover orientation and identity over time. Respect, privacy, and kindness are essential for everyone.'],
+        ['title' => 'Myths vs facts', 'text' => 'Social media can spread misinformation. Use trusted sources (clinicians, health educators, official health orgs).'],
+        ['title' => 'When to ask for help', 'text' => 'Get help for severe pain, heavy bleeding, coercion, assault, STI concerns, pregnancy concerns, or strong emotional distress.'],
     ];
 }
